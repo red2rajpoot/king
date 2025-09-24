@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Simple Gateway (Name + Password)</title>
+  <style>
+    body{font-family:Arial, sans-serif;max-width:720px;margin:30px auto;padding:16px}
+    h2{margin-bottom:10px}
+    label{display:block;margin-top:10px;font-size:14px;color:#333}
+    input{width:100%;padding:10px;margin-top:6px;border:1px solid #ccc;border-radius:6px;font-size:15px}
+    button{margin-top:14px;padding:10px 16px;border:0;border-radius:8px;background:#2b7cff;color:#fff;font-size:16px;cursor:pointer}
+    #status{margin-top:12px;font-size:14px}
+    .small{font-size:13px;color:#666;margin-top:6px}
+    .hint{font-size:12px;color:#b00}
+  </style>
+</head>
+<body>
+  <h2>Message bhejein</h2>
+
+  <label>Name (Upar)</label>
+  <input id="name" type="text" placeholder="Aapka naam likho">
+
+  <label>Password (Niche)</label>
+  <input id="password" type="password" placeholder="Password likho">
+
+  <div class="small">Note: Ye demo ke liye hai. Real passwords plain text me store karna theek nahi.</div>
+
+  <button id="sendBtn">Send</button>
+  <div id="status"></div>
+
+  <!-- Hidden fallback form (for CORS fallbacks) -->
+  <iframe name="hiddenFrame" style="display:none;"></iframe>
+  <form id="fallbackForm" action="https://script.google.com/macros/s/AKfycbwwf5T0abNqTLOA6Jh7EYbsRTJN23rrpyfoschxsvcrWKpPvRCCyi_6z5xCjjDhftfs/exec" method="post" target="hiddenFrame" style="display:none;">
+    <input type="hidden" name="name" id="f_name">
+    <input type="hidden" name="password" id="f_password">
+  </form>
+
+  <script>
+    // Apps Script Web App URL (aapne diya hua)
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwwf5T0abNqTLOA6Jh7EYbsRTJN23rrpyfoschxsvcrWKpPvRCCyi_6z5xCjjDhftfs/exec';
+
+    const sendBtn = document.getElementById('sendBtn');
+    const statusDiv = document.getElementById('status');
+
+    sendBtn.addEventListener('click', async () => {
+      const name = document.getElementById('name').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if(!name && !password){
+        show('Kuch likho pehle.', 'red');
+        return;
+      }
+
+      sendBtn.disabled = true;
+      show('Sending...', 'black');
+
+      // Try sending JSON via fetch (preferred)
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, password })
+        });
+
+        // Try parse json (Apps Script returns JSON on success in our script)
+        let text = await res.text();
+        // Some deployments return plain text — handle both
+        try { var data = JSON.parse(text); } catch(e){ data = {statusText: text}; }
+
+        // If HTTP ok -> success
+        if (res.ok) {
+          show('Saved successfully!', 'green');
+          document.getElementById('name').value = '';
+          document.getElementById('password').value = '';
+        } else {
+          // If fetch failed because of CORS or 4xx/5xx, fallback to form submit
+          show('Server error or blocked (trying fallback)...', 'orange');
+          fallbackSubmit(name,password);
+        }
+      } catch (err) {
+        // Network/CORS error -> fallback using form submit
+        console.warn('Fetch error, using fallback:', err);
+        show('Network/CORS issue — using fallback submit...', 'orange');
+        fallbackSubmit(name,password);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+
+    function fallbackSubmit(name, password){
+      // Put values into hidden form and submit (works if Apps Script accepts form posts)
+      document.getElementById('f_name').value = name;
+      document.getElementById('f_password').value = password;
+      document.getElementById('fallbackForm').submit();
+
+      // Give user a message and clear after short time (cannot be 100% sure of success)
+      show('Submitted using fallback. Check Google Sheet.', 'green');
+      document.getElementById('name').value = '';
+      document.getElementById('password').value = '';
+    }
+
+    function show(msg, color){
+      statusDiv.style.color = color;
+      statusDiv.textContent = msg;
+    }
+  </script>
+</body>
+</html>
